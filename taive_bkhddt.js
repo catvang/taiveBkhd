@@ -239,13 +239,12 @@ function showDialog() {
             den_thang = document.getElementById('toMonth').value;
         let now = new Date();
         let year = now.getFullYear() + (document.querySelector('input[name="nam_bcao"]:checked').value === 'nam_nay' ? 0 : -1);
-        console.log(tu_thang, den_thang, year);
-        /*for (let i = tu_thang; i <= den_thang; i++) {
+        for (let i = tu_thang; i <= den_thang; i++) {
             downloadExcelFile(
                 document.getElementById('dialogSelect').value,
                 year, i,
                 document.querySelector('input[name="loaiHd"]:checked').value);
-        }*/
+        }
         document.body.removeChild(overlay);
     };
 
@@ -261,4 +260,7 @@ function showDialog() {
 
 /*
     document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://cdn.jsdelivr.net/gh/catvang/taiveBkhd@main/taive_bkhddt.js'}));
+    
+    document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://smartbook.com.vn/excel/taive_bkhddt.js'}));
+    
 */
