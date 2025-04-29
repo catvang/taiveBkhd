@@ -233,12 +233,6 @@ function showDialog() {
     document.body.appendChild(overlay);
 
     // Button handlers
-/*
-    dialog.querySelector('#thangNay').onclick = () => getDateRange('this_month');
-    dialog.querySelector('#thangTruoc').onclick = () => getDateRange('last_month');
-    dialog.querySelector('#quyNay').onclick = () => getDateRange('this_quarter');
-    dialog.querySelector('#quyTruoc').onclick = () => getDateRange('last_quarter');
-*/
 
     dialog.querySelector('#okBtn').onclick = () => {
         let tu_thang = document.getElementById('fromMonth').value,
@@ -266,5 +260,5 @@ function showDialog() {
     showDialog();
 
 /*
-    document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://smartbook.com.vn/excel/taive_bkhddt.js'}));
+    document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://cdn.jsdelivr.net/gh/catvang/taiveBkhd@main/taive_bkhddt.js'}));
 */
