@@ -191,8 +191,7 @@ function showDialog() {
     // Dialog content
     dialog.innerHTML = `
     <label>Mã Cty:</label><br>
-    <input type="text" id="company_id">
-	<select id="company_id">
+    <select id="company_id">
       <option value="Nat">Nat</option>
       <option value="NamPhu">Nam Phú</option>
       <option value="PhucThinh">Phúc Thịnh</option>
