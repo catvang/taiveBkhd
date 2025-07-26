@@ -38,19 +38,19 @@ function downloadExcelFile(company, year, month, group) {
         },
         {
             group: 'mua',
-            file_name: "BK Mua co ma",
+            file_name: "BK Mua CMa",
             link: "query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==5%20%20%20%20&type=purchase",
             action: "Xu%E1%BA%A5t%20h%C3%B3a%20%C4%91%C6%A1n%20(h%C3%B3a%20%C4%91%C6%A1n%20mua%20v%C3%A0o)"
         },
         {
             group: 'mua',
-            file_name: "BK Mua khong ma",
+            file_name: "BK Mua KMa",
             link: "query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==6%20%20%20%20&type=purchase",
             action: "Xu%E1%BA%A5t%20h%C3%B3a%20%C4%91%C6%A1n%20(h%C3%B3a%20%C4%91%C6%A1n%20mua%20v%C3%A0o)"
         },
         {
             group: 'mua',
-            file_name: "BK Mua may TTien",
+            file_name: "BK Mua MTTien",
             link: "sco-query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==8%20%20%20%20&type=purchase",
             action: "Xu%E1%BA%A5t%20h%C3%B3a%20%C4%91%C6%A1n%20(h%C3%B3a%20%C4%91%C6%A1n%20m%C3%A1y%20t%C3%ADnh%20ti%E1%BB%81n%20mua%20v%C3%A0o)"
         }
@@ -159,7 +159,7 @@ function getDateRange(type) {
 
     for (let i = fromMonth; i <= toMonth; i++) {
         downloadExcelFile(
-            document.getElementById('dialogSelect').value,
+            document.getElementById('company_id').value,
             fromYear, i,
             document.querySelector('input[name="loaiHd"]:checked').value);
     }
@@ -190,16 +190,9 @@ function showDialog() {
 
     // Dialog content
     dialog.innerHTML = `
-    <label>Select Option:</label><br>
-    <select id="dialogSelect">
-      <option value="Nat">NAT</option>
-      <option value="NangViet">Nâng Việt</option>
-      <option value="Thtc">Texhong Tân Cảng</option>
-      <option value="PhucThinh">Phúc Thịnh</option>
-      <option value="Lkqt">Liên kết Quốc tế</option>
-      <option value="Leo">Leo Ocean Marine</option>
-      <option value="NamPhu">Nam Phú</option>
-    </select><br><br>
+    <label>Mã Cty:</label><br>
+    <input type="text" id="company_id">
+    <br><br>
     
     <label for="loaiHd">Loại hóa đơn: </label>
         <input type="radio" name="loaiHd" value="all" checked> Tất cả
@@ -210,13 +203,15 @@ function showDialog() {
     <label>Từ tháng:</label>
     <input type="number" id="fromMonth" min="1" max="12">
 
-    <label>Đến tháng<button id="sameBtn">(cùng tháng):</button></label>
+    <label>Đến tháng<button id="cungThangBtn">(cùng tháng):</button></label>
     <input type="number" id="toMonth" min="1" max="12">
     <br><br>
 
     <label for="nam_bcao">Năm báo cáo: </label>
-        <input type="radio" name="nam_bcao" value="nam_nay" checked> Năm nay
-        <input type="radio" name="nam_bcao" value="nam_truoc" > Năm trước
+        <input type="radio" name="nam_bcao" value="nam_0" checked> Năm nay
+        <input type="radio" name="nam_bcao" value="nam_1" > Năm trước
+        <input type="radio" name="nam_bcao" value="nam_2" > Hai Năm trước
+        <input type="radio" name="nam_bcao" value="nam_3" > Ba Năm trước
     <br>
     <button id="okBtn">OK</button>
     <button id="cancelBtn">Cancel</button>
@@ -238,17 +233,17 @@ function showDialog() {
         let tu_thang = document.getElementById('fromMonth').value,
             den_thang = document.getElementById('toMonth').value;
         let now = new Date();
-        let year = now.getFullYear() + (document.querySelector('input[name="nam_bcao"]:checked').value === 'nam_nay' ? 0 : -1);
+        let year = now.getFullYear() + -document.querySelector('input[name="nam_bcao"]:checked').value.split('_')[1];
         for (let i = tu_thang; i <= den_thang; i++) {
             downloadExcelFile(
-                document.getElementById('dialogSelect').value,
+                document.getElementById('company_id').value,
                 year, i,
                 document.querySelector('input[name="loaiHd"]:checked').value);
         }
         document.body.removeChild(overlay);
     };
 
-    dialog.querySelector('#sameBtn').onclick = () => {
+    dialog.querySelector('#cungThangBtn').onclick = () => {
         document.getElementById('toMonth').value = document.getElementById('fromMonth').value;
     };
 
@@ -257,10 +252,3 @@ function showDialog() {
     };
 }
     showDialog();
-
-/*
-    document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://cdn.jsdelivr.net/gh/catvang/taiveBkhd@main/taive_bkhddt.js'}));
-    
-    document.head.appendChild(Object.assign(document.createElement('script'), {src: 'https://smartbook.com.vn/excel/taive_bkhddt.js'}));
-    
-*/
