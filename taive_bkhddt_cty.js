@@ -200,6 +200,7 @@ function showDialog() {
       <option value="Lkqt">Liên Kết Quốc Tế</option>
       <option value="Btx">Bầu Trời Xanh</option>
       <option value="Yks">Yks</option>
+      <option value="DuyTung">Duy Tùng</option>
       <option value="NganGiang">Ngân Giang</option>
       <option value="Thtc">Thtc</option>
     </select>
