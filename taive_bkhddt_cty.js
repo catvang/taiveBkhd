@@ -222,8 +222,10 @@ function showDialog() {
     <label for="nam_bcao">Năm báo cáo: </label>
         <input type="radio" name="nam_bcao" value="nam_0" checked> Năm nay
         <input type="radio" name="nam_bcao" value="nam_1" > Năm trước
-        <input type="radio" name="nam_bcao" value="nam_2" > Hai Năm trước
-        <input type="radio" name="nam_bcao" value="nam_3" > Ba Năm trước
+        <input type="radio" name="nam_bcao" value="nam_2" > Hai năm trước
+        <input type="radio" name="nam_bcao" value="nam_3" > Ba năm trước
+        <input type="radio" name="nam_bcao" value="nam_4" > Bốn năm trước
+        <input type="radio" name="nam_bcao" value="nam_5" > Năm năm trước
     <br>
     <button id="okBtn">OK</button>
     <button id="cancelBtn">Cancel</button>
