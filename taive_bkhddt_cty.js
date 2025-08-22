@@ -168,6 +168,7 @@ function getDateRange(type) {
 
 function showDialog() {
     // Create overlay
+    let this_year = now.getFullYear();
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
     overlay.style.top = 0;
@@ -221,11 +222,11 @@ function showDialog() {
 
     <label for="nam_bcao">Năm báo cáo: </label>
         <input type="radio" name="nam_bcao" value="nam_0" checked> Năm nay
-        <input type="radio" name="nam_bcao" value="nam_1" > Năm trước
-        <input type="radio" name="nam_bcao" value="nam_2" > Hai năm trước
-        <input type="radio" name="nam_bcao" value="nam_3" > Ba năm trước
-        <input type="radio" name="nam_bcao" value="nam_4" > Bốn năm trước
-        <input type="radio" name="nam_bcao" value="nam_5" > Năm năm trước
+        <input type="radio" name="nam_bcao" value="nam_1" > ${ this_year - 1 }
+        <input type="radio" name="nam_bcao" value="nam_2" > ${ this_year - 2 }
+        <input type="radio" name="nam_bcao" value="nam_3" > ${ this_year - 4 }
+        <input type="radio" name="nam_bcao" value="nam_4" > ${ this_year - 4 }
+        <input type="radio" name="nam_bcao" value="nam_5" > ${ this_year - 5 }
     <br>
     <button id="okBtn">OK</button>
     <button id="cancelBtn">Cancel</button>
