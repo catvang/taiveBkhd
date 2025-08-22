@@ -225,7 +225,7 @@ function showDialog() {
         <input type="radio" name="nam_bcao" value="nam_0" checked> Năm nay
         <input type="radio" name="nam_bcao" value="nam_1" > ${ this_year - 1 }
         <input type="radio" name="nam_bcao" value="nam_2" > ${ this_year - 2 }
-        <input type="radio" name="nam_bcao" value="nam_3" > ${ this_year - 4 }
+        <input type="radio" name="nam_bcao" value="nam_3" > ${ this_year - 3 }
         <input type="radio" name="nam_bcao" value="nam_4" > ${ this_year - 4 }
         <input type="radio" name="nam_bcao" value="nam_5" > ${ this_year - 5 }
     <br>
