@@ -169,7 +169,7 @@ function getDateRange(type) {
 function showDialog() {
     // Create overlay
     let now = new Date();
-    let year = now.getFullYear() + -document.querySelector('input[name="nam_bcao"]:checked').value.split('_')[1];
+    let this_year = now.getFullYear();
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
     overlay.style.top = 0;
@@ -223,11 +223,11 @@ function showDialog() {
 
     <label for="nam_bcao">Năm báo cáo: </label>
         <input type="radio" name="nam_bcao" value="nam_0" checked> Năm nay
-        <input type="radio" name="nam_bcao" value="nam_1" > ${ year - 1 }
-        <input type="radio" name="nam_bcao" value="nam_2" > ${ year - 2 }
-        <input type="radio" name="nam_bcao" value="nam_3" > ${ year - 4 }
-        <input type="radio" name="nam_bcao" value="nam_4" > ${ year - 4 }
-        <input type="radio" name="nam_bcao" value="nam_5" > ${ year - 5 }
+        <input type="radio" name="nam_bcao" value="nam_1" > ${ this_year - 1 }
+        <input type="radio" name="nam_bcao" value="nam_2" > ${ this_year - 2 }
+        <input type="radio" name="nam_bcao" value="nam_3" > ${ this_year - 4 }
+        <input type="radio" name="nam_bcao" value="nam_4" > ${ this_year - 4 }
+        <input type="radio" name="nam_bcao" value="nam_5" > ${ this_year - 5 }
     <br>
     <button id="okBtn">OK</button>
     <button id="cancelBtn">Cancel</button>
@@ -246,6 +246,7 @@ function showDialog() {
     // Button handlers
 
     dialog.querySelector('#okBtn').onclick = () => {
+        let year = this_year + -document.querySelector('input[name="nam_bcao"]:checked').value.split('_')[1]
         let tu_thang = document.getElementById('fromMonth').value,
             den_thang = document.getElementById('toMonth').value;
         
