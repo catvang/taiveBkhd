@@ -136,6 +136,15 @@ function getDateRange(type) {
             break;
         }
 
+        case '3_month_ago': {
+            const d = new Date(year, month - 1, 1);
+            fromYear = d.getFullYear();
+            fromMonth = d.getMonth();
+            toYear = fromYear;
+            toMonth = fromMonth;
+            break;
+        }
+
         case 'this_quarter': {
             const q = Math.floor(month / 3);
             fromMonth = q * 3 + 1;
@@ -236,6 +245,7 @@ function showDialog() {
     <strong>Hoặc chọn nhanh:</strong><br>
     <button id="thangNay" onclick="getDateRange('this_month')">Tháng này</button>
     <button id="thangTruoc" onclick="getDateRange('last_month')">Tháng trước</button>
+    <button id="thangTruoc3" onclick="getDateRange('3_month_ago')">Ba Thg trước</button>
     <button id="quyNay" onclick="getDateRange('this_quarter')">Quý này</button>
     <button id="quyTruoc" onclick="getDateRange('last_quarter')">Quý trước</button>
   `;
