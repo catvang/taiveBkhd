@@ -27,7 +27,7 @@
     function downloadExcelFile(company, year, month, group) {
         let reports = [
             { group: 'ban', file_name: "BK Ban", link: "query/invoices/export-excel?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59", action: "ket-xuat" },
-            { group: 'ban', file_name: "BK Ban KMa", link: "sco-query/invoices/export-excel?sort=tdlap:desc&search=tdlap=ge=11/02/2026T00:00:00;tdlap=le=01/03/2026T23:59:59", action: "ket-xuat" },
+            { group: 'ban', file_name: "BK Ban KMa", link: "sco-query/invoices/export-excel?sort=tdlap:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59", action: "ket-xuat" },
             { group: 'mua', file_name: "BK Mua CMa", link: "query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==5%20%20%20%20&type=purchase", action: "ket-xuat" },
             { group: 'mua', file_name: "BK Mua KMa", link: "query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==6%20%20%20%20&type=purchase", action: "ket-xuat" },
             { group: 'mua', file_name: "BK Mua MTTien", link: "sco-query/invoices/export-excel-sold?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59;ttxly==8%20%20%20%20&type=purchase", action: "ket-xuat" }
