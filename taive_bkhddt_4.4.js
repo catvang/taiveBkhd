@@ -24,7 +24,6 @@
         return null;
     }
 
-    // Thêm tham số isBanMTT vào hàm tải
     async function downloadExcelFile(company, year, month, group, isBanMTT) {
         let reports = [
             { group: 'ban', file_name: "BK Ban", link: "query/invoices/export-excel?sort=tdlap:desc,khmshdon:asc,shdon:desc&search=tdlap=ge=01/11/2024T00:00:00;tdlap=le=30/11/2024T23:59:59", action: "ket-xuat" },
@@ -42,10 +41,8 @@
             return;
         }
 
-        // Lọc danh sách báo cáo cần tải
         const filteredReports = reports.filter(r => {
             const isMatchGroup = (group === "all" || group === undefined || r.group === group);
-            // Bỏ qua file "BK Ban MTTien" nếu người dùng không tích vào checkbox
             if (r.file_name === "BK Ban MTTien" && !isBanMTT) {
                 return false;
             }
@@ -86,7 +83,6 @@
         }
     }
 
-    // Cập nhật hàm gọi để nhận thêm tham số isBanMTT
     async function downloadMonthRange(year, fromMonth, toMonth, company, group, isBanMTT) {
         for (let i = fromMonth; i <= toMonth; i++) {
             await downloadExcelFile(company, year, i, group, isBanMTT);
@@ -108,6 +104,7 @@
             #report_year { border: none; background: transparent; width: 55px; text-align: center; font-weight: bold; font-size: 15px; }
             .btn-q { padding: 6px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; border-radius: 6px; font-size: 12px; transition: 0.2s; }
             .btn-q:hover { background: #3182ce; color: #fff; }
+            .fb-radio-label, .fb-chk-label { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 5px; }
         `;
         document.head.appendChild(style);
 
@@ -123,10 +120,12 @@
             background: '#fff', padding: '25px', borderRadius: '15px', width: '380px', fontFamily: 'sans-serif'
         });
 
+        // Chặn nổi bọt sự kiện click từ dialog ra overlay
+        dialog.onclick = (e) => e.stopPropagation();
+
         const curYear = localStorage.report_year || new Date().getFullYear();
         const curCty = localStorage.company_id || "Congty";
 
-        // Thêm checkbox vào giao diện phần LOẠI HÓA ĐƠN
         dialog.innerHTML = `
             <h3 style="margin:0 0 15px 0; color:#2d3748; text-align:center">Tải bảng kê hóa đơn</h3>
             <div style="margin-bottom:12px">
@@ -135,15 +134,21 @@
             </div>
             <div style="margin-bottom:12px">
                 <label style="font-size:12px; font-weight:bold; color:#718096">LOẠI HÓA ĐƠN</label>
-                <div style="display:flex; gap:15px; margin-top:4px">
-                    <label><input type="radio" name="loaiHd" value="all" checked> Tất cả</label>
-                    <label><input type="radio" name="loaiHd" value="mua"> Mua</label>
-                    <label><input type="radio" name="loaiHd" value="ban"> Bán</label>
+                <div style="display:flex; gap:15px; margin-top:6px">
+                    <label class="fb-radio-label" for="loai_all">
+                        <input type="radio" id="loai_all" name="loaiHd" value="all" checked> Tất cả
+                    </label>
+                    <label class="fb-radio-label" for="loai_mua">
+                        <input type="radio" id="loai_mua" name="loaiHd" value="mua"> Mua
+                    </label>
+                    <label class="fb-radio-label" for="loai_ban">
+                        <input type="radio" id="loai_ban" name="loaiHd" value="ban"> Bán
+                    </label>
                 </div>
-                <div style="margin-top:8px">
-                    <label style="font-size:12px; display:flex; align-items:center; gap:5px; color:#4a5568">
+                <div style="margin-top:10px">
+                    <label class="fb-chk-label" for="chk_ban_mtt" style="font-size:13px; color:#4a5568">
                         <input type="checkbox" id="chk_ban_mtt"> 
-                        Bao gồm Hóa đơn Bán ra từ Máy tính tiền
+                        Bao gồm HĐ Bán ra từ Máy tính tiền
                     </label>
                 </div>
             </div>
@@ -151,9 +156,9 @@
                 <div>
                     <label style="font-size:12px; font-weight:bold; color:#718096">NĂM</label>
                     <div class="year-stepper" style="margin-top:4px">
-                        <button class="year-btn" onclick="document.getElementById('report_year').stepDown()">—</button>
+                        <button class="year-btn" type="button" onclick="document.getElementById('report_year').stepDown()">—</button>
                         <input type="number" id="report_year" value="${curYear}">
-                        <button class="year-btn" onclick="document.getElementById('report_year').stepUp()">+</button>
+                        <button class="year-btn" type="button" onclick="document.getElementById('report_year').stepUp()">+</button>
                     </div>
                 </div>
                 <div>
@@ -170,61 +175,64 @@
                 <div style="display:flex; gap:4px; margin-top:5px" id="q-grid"></div>
             </div>
             <div style="margin-top:20px; display:flex; gap:10px">
-                <button id="close-fb" style="flex:1; padding:10px; border:none; background:#edf2f7; border-radius:8px; cursor:pointer">Hủy</button>
-                <button id="dl-fb" style="flex:2; padding:10px; border:none; background:#3182ce; color:#fff; border-radius:8px; cursor:pointer; font-weight:bold">Tải xuống</button>
+                <button id="close-fb" type="button" style="flex:1; padding:10px; border:none; background:#edf2f7; border-radius:8px; cursor:pointer">Hủy</button>
+                <button id="dl-fb" type="button" style="flex:2; padding:10px; border:none; background:#3182ce; color:#fff; border-radius:8px; cursor:pointer; font-weight:bold">Tải xuống</button>
             </div>
         `;
 
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
+        const getFormData = () => ({
+            y: document.getElementById('report_year').value,
+            cty: document.getElementById('company_id').value,
+            loai: document.querySelector('input[name="loaiHd"]:checked')?.value || 'all',
+            isBanMTT: document.getElementById('chk_ban_mtt').checked
+        });
+
         const mGrid = dialog.querySelector('#m-grid');
         for (let i = 1; i <= 12; i++) {
-            const b = document.createElement('button'); b.className = 'btn-q'; b.textContent = `T${i}`;
+            const b = document.createElement('button'); 
+            b.className = 'btn-q'; 
+            b.type = 'button';
+            b.textContent = `T${i}`;
             b.onclick = async () => { 
-                const y = document.getElementById('report_year').value;
-                const cty = document.getElementById('company_id').value;
-                const loai = document.querySelector('input[name="loaiHd"]:checked').value;
-                const isBanMTT = document.getElementById('chk_ban_mtt').checked; // Đọc trạng thái checkbox
-                
+                const data = getFormData();
                 overlay.remove(); 
-                await downloadMonthRange(y, i, i, cty, loai, isBanMTT); 
+                await downloadMonthRange(data.y, i, i, data.cty, data.loai, data.isBanMTT); 
             };
             mGrid.appendChild(b);
         }
 
         const qGrid = dialog.querySelector('#q-grid');
         for (let i = 1; i <= 4; i++) {
-            const b = document.createElement('button'); b.className = 'btn-q'; b.style.flex = "1"; b.textContent = `Q${i}`;
+            const b = document.createElement('button'); 
+            b.className = 'btn-q'; 
+            b.type = 'button';
+            b.style.flex = "1"; 
+            b.textContent = `Q${i}`;
             b.onclick = async () => { 
-                const y = document.getElementById('report_year').value;
-                const cty = document.getElementById('company_id').value;
-                const loai = document.querySelector('input[name="loaiHd"]:checked').value;
-                const isBanMTT = document.getElementById('chk_ban_mtt').checked;
-                
+                const data = getFormData();
                 overlay.remove(); 
-                await downloadMonthRange(y, (i-1)*3+1, i*3, cty, loai, isBanMTT); 
+                await downloadMonthRange(data.y, (i-1)*3+1, i*3, data.cty, data.loai, data.isBanMTT); 
             };
             qGrid.appendChild(b);
         }
 
         dialog.querySelector('#dl-fb').onclick = async () => {
-            const y = document.getElementById('report_year').value;
-            const cty = document.getElementById('company_id').value;
-            const loai = document.querySelector('input[name="loaiHd"]:checked').value;
-            const isBanMTT = document.getElementById('chk_ban_mtt').checked;
+            const data = getFormData();
             const f = Number(document.getElementById('fromM').value) || 1;
             const t = Number(document.getElementById('toM').value) || f;
             
-            localStorage.report_year = y;
-            localStorage.company_id = cty;
+            localStorage.report_year = data.y;
+            localStorage.company_id = data.cty;
             
             overlay.remove();
-            await downloadMonthRange(y, f, t, cty, loai, isBanMTT);
+            await downloadMonthRange(data.y, f, t, data.cty, data.loai, data.isBanMTT);
         };
 
         dialog.querySelector('#close-fb').onclick = () => overlay.remove();
-        overlay.onclick = (e) => e.target === overlay && overlay.remove();
+        overlay.onclick = () => overlay.remove();
     }
 
     showDialog();
