@@ -1,5 +1,27 @@
-(function () {
+(async function () {
     'use strict';
+
+    // 0. Tự động nạp thư viện JSZip nếu Console chưa có
+    async function loadJSZip() {
+        if (typeof JSZip !== 'undefined') return true;
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            s.onload = () => {
+                console.log("%c[HDDT]%c Đã nạp thành công JSZip!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
+                resolve(true);
+            };
+            s.onerror = () => reject(new Error("Không thể tải thư viện JSZip từ CDN!"));
+            document.head.appendChild(s);
+        });
+    }
+
+    try {
+        await loadJSZip();
+    } catch (e) {
+        alert(e.message);
+        return;
+    }
 
     // 1. Sinh UUID v4 cho Request-Id
     function generateUUID() {
@@ -43,7 +65,15 @@
         }
     }
 
-    // 5. Chèn CSS dùng chung
+    // Xóa panel & modal cũ nếu đã chạy trước đó trong cùng session
+    const oldPanel = document.getElementById('api-hddt-panel');
+    if (oldPanel) oldPanel.remove();
+    const oldModal = document.getElementById('api-hddt-modal');
+    if (oldModal) oldModal.remove();
+    const oldOverlay = document.getElementById('api-hddt-overlay');
+    if (oldOverlay) oldOverlay.remove();
+
+    // 5. Chèn CSS giao diện
     const style = document.createElement('style');
     style.innerHTML = `
         #api-hddt-panel {
@@ -115,7 +145,7 @@
     `;
     document.head.appendChild(style);
 
-    // 6. Dựng khung điều khiển Widget nổi
+    // 6. Giao diện bảng điều khiển
     const panel = document.createElement('div');
     panel.id = 'api-hddt-panel';
     panel.innerHTML = `
@@ -164,8 +194,7 @@
             <h3 style="margin: 0; font-size: 16px; color: #0f172a;" id="modal-title">Danh sách hóa đơn</h3>
             <button id="btn-close-modal" style="border: none; background: #e2e8f0; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-weight: bold;">✕</button>
         </div>
-
-        <!-- Thanh công cụ lọc chọn nhanh theo ngày phát sinh -->
+        
         <div class="modal-filter-bar">
             <span style="font-weight: 600; color: #334155;">Chọn nhanh theo ngày phát sinh:</span>
             <span style="color: #64748b;">Từ ngày:</span>
@@ -216,7 +245,38 @@
     let isBatchDownloading = false;
     let currentInvoices = [];
 
-    // 7. Tải 1 file XML bất đồng bộ (chống lỗi 429 và tên file có nmmst)
+    // 7. Giải nén ZIP trong bộ nhớ và lưu duy nhất file invoice.xml
+    async function extractAndSaveXml(zipBuffer, item) {
+        if (typeof JSZip === 'undefined') {
+            await loadJSZip();
+        }
+
+        const zip = await JSZip.loadAsync(zipBuffer);
+
+        let xmlFile = zip.file("invoice.xml");
+        if (!xmlFile) {
+            const xmlFiles = zip.file(/\.xml$/i);
+            if (xmlFiles.length > 0) xmlFile = xmlFiles[0];
+        }
+
+        if (!xmlFile) {
+            throw new Error("Không tìm thấy file XML bên trong gói nén!");
+        }
+
+        const xmlBlob = await xmlFile.async("blob");
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(xmlBlob);
+
+        const nbmst = item.nbmst || 'NB';
+        const nmmst = item.nmmst || 'NM';
+        a.download = `${nbmst}_${nmmst}_${item.khhdon}_${item.shdon}.xml`;
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    // 8. Tải và xử lý giải nén bất đồng bộ (chống 429)
     async function downloadXmlAsync(item) {
         const token = getJwtToken();
         const baseEndpoint = isCurrentSco ? 'sco-query' : 'query';
@@ -248,21 +308,12 @@
 
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-                const blob = await res.blob();
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-
-                const nbmst = item.nbmst || 'NB';
-                const nmmst = item.nmmst || 'NM';
-                a.download = `invoice_${nbmst}_${nmmst}_${item.khhdon}_${item.shdon}.zip`;
-
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
+                const arrayBuffer = await res.arrayBuffer();
+                await extractAndSaveXml(arrayBuffer, item);
                 return true;
             } catch (err) {
                 if (retries >= maxRetries - 1) {
-                    console.error(`Không thể tải file XML hóa đơn số ${item.shdon}: ${err.message}`);
+                    console.error(`Không thể giải nén/tải hóa đơn số ${item.shdon}: ${err.message}`);
                     return false;
                 }
             }
@@ -270,7 +321,7 @@
         return false;
     }
 
-    // 8. Đệ quy qua cursor "state" nạp toàn bộ hóa đơn của tháng
+    // 9. Nạp toàn bộ trang bằng con trỏ state
     async function queryAllPages(month, year) {
         if (isFetching) {
             console.warn("Đang có tiến trình truy vấn, vui lòng đợi...");
@@ -397,7 +448,7 @@
         }
     }
 
-    // 9. Hiển thị bảng Modal dữ liệu & khởi tạo ngày mặc định cho bộ lọc
+    // 10. Hiển thị bảng Modal dữ liệu
     function showModal(list, month, year, isPurchase, totalCount) {
         const tbody = document.getElementById('modal-tbody');
         tbody.innerHTML = '';
@@ -405,7 +456,6 @@
         document.getElementById('modal-title').textContent =
             `Danh sách Hóa đơn ${isPurchase ? 'Mua vào' : 'Bán ra'} - Tháng ${month}/${year} (Đã nạp: ${list.length}/${totalCount})`;
 
-        // Thiết lập sẵn giá trị mặc định cho ô chọn ngày (ngày đầu tháng)
         const pad = (n) => String(n).padStart(2, '0');
         const filterInput = document.getElementById('filter-date-after');
         if (filterInput) {
@@ -418,8 +468,6 @@
             const tr = document.createElement('tr');
             const partnerName = isPurchase ? item.nbten : item.nmten;
             const partnerMst = isPurchase ? item.nbmst : item.nmmst;
-
-            // Lấy chuỗi YYYY-MM-DD để so sánh ngày chính xác
             const dateOnly = item.tdlap ? item.tdlap.substring(0, 10) : '';
 
             tr.innerHTML = `
@@ -444,11 +492,10 @@
             tbody.appendChild(tr);
         });
 
-        // Bắt sự kiện tải riêng lẻ cho từng nút trong bảng
         tbody.querySelectorAll('.btn-download-xml').forEach(btn => {
             btn.onclick = async function () {
                 const idx = parseInt(this.getAttribute('data-index'));
-                this.textContent = 'Đang tải...';
+                this.textContent = 'Đang giải nén...';
                 this.disabled = true;
                 await downloadXmlAsync(list[idx]);
                 this.textContent = 'Đã tải';
@@ -464,14 +511,13 @@
         modal.style.display = 'flex';
     }
 
-    // Cập nhật thông tin số lượng mục đã chọn
     function updateSummary() {
         const total = currentInvoices.length;
         const selectedCount = document.querySelectorAll('.chk-item:checked').length;
         document.getElementById('modal-summary').textContent = `Đã chọn: ${selectedCount}/${total} hóa đơn.`;
     }
 
-    // 10. Đóng Modal
+    // 11. Đóng Modal
     document.getElementById('btn-close-modal').onclick = () => {
         overlay.style.display = 'none';
         modal.style.display = 'none';
@@ -481,20 +527,18 @@
         modal.style.display = 'none';
     };
 
-    // Chọn / Bỏ chọn tất cả qua checkbox ở tiêu đề
     document.getElementById('chk-all').onchange = function () {
         document.querySelectorAll('.chk-item').forEach(chk => chk.checked = this.checked);
         updateSummary();
     };
 
-    // Bắt sự kiện thay đổi từng checkbox lẻ
     document.getElementById('modal-tbody').addEventListener('change', (e) => {
         if (e.target.classList.contains('chk-item')) {
             updateSummary();
         }
     });
 
-    // 11. Xử lý nút Lọc chọn theo ngày phát sinh (>= ngày chỉ định)
+    // Lọc theo ngày
     document.getElementById('btn-apply-date-filter').onclick = () => {
         const filterVal = document.getElementById('filter-date-after').value;
         if (!filterVal) {
@@ -506,7 +550,7 @@
         let matched = 0;
 
         checkboxes.forEach(chk => {
-            const itemDate = chk.getAttribute('data-date'); // YYYY-MM-DD
+            const itemDate = chk.getAttribute('data-date');
             if (itemDate && itemDate >= filterVal) {
                 chk.checked = true;
                 matched++;
@@ -515,19 +559,17 @@
             }
         });
 
-        // Bỏ chọn nút chk-all ở tiêu đề nếu không chọn hết
         document.getElementById('chk-all').checked = (matched === checkboxes.length && matched > 0);
         updateSummary();
     };
 
-    // Bỏ chọn tất cả
     document.getElementById('btn-clear-selection').onclick = () => {
         document.querySelectorAll('.chk-item').forEach(chk => chk.checked = false);
         document.getElementById('chk-all').checked = false;
         updateSummary();
     };
 
-    // 12. Tải tuần tự hàng loạt (Sequential Queue) chống 429
+    // 12. Tải hàng loạt tuần tự: Giải nén và lưu file XML
     document.getElementById('btn-download-selected').onclick = async () => {
         if (isBatchDownloading) return;
 
@@ -549,22 +591,22 @@
             const idx = parseInt(chk.getAttribute('data-index'));
             const inv = currentInvoices[idx];
 
-            btnDownload.textContent = `Đang tải: ${i + 1}/${checkedBoxes.length}...`;
-            summaryEl.textContent = `Đang tải hóa đơn số ${inv.shdon} (${i + 1}/${checkedBoxes.length})`;
+            btnDownload.textContent = `Đang xử lý: ${i + 1}/${checkedBoxes.length}...`;
+            summaryEl.textContent = `Đang giải nén & tải XML hóa đơn số ${inv.shdon} (${i + 1}/${checkedBoxes.length})`;
 
             await downloadXmlAsync(inv);
 
-            // Nghỉ 900ms giữa các lượt tải
+            // Khoảng nghỉ an toàn giữa các file để tránh rate-limit
             await new Promise(r => setTimeout(r, 900));
         }
 
         btnDownload.textContent = originalBtnText;
         btnDownload.disabled = false;
-        summaryEl.textContent = `Đã tải xong toàn bộ ${checkedBoxes.length} hóa đơn đã chọn.`;
+        summaryEl.textContent = `Đã giải nén và lưu xong toàn bộ ${checkedBoxes.length} hóa đơn XML.`;
         isBatchDownloading = false;
     };
 
-    // 13. Điều khiển trên Panel Widget
+    // 13. Điều khiển Panel Widget
     document.querySelectorAll('#api-group-type .a-btn-tab').forEach(btn => {
         btn.onclick = function () {
             document.querySelectorAll('#api-group-type .a-btn-tab').forEach(b => b.classList.remove('active'));
@@ -584,4 +626,6 @@
         btn.onclick = () => queryAllPages(m, parseInt(yearInput.value));
         monthsContainer.appendChild(btn);
     }
+
+    console.log("%c[HDDT]%c Widget tra cứu & giải nén XML đã sẵn sàng ở góc dưới bên phải!", "color:#1677ff;font-weight:bold;", "color:#334155;");
 })();
