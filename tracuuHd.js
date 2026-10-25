@@ -1,23 +1,24 @@
 (async function () {
     'use strict';
 
-    // 0. Tự động nạp thư viện JSZip nếu Console chưa có
-    async function loadJSZip() {
-        if (typeof JSZip !== 'undefined') return true;
+    // 0. Tự động nạp JSZip và xlsx-js-style (hỗ trợ Border & Color cho Excel)
+    function loadScript(url) {
         return new Promise((resolve, reject) => {
             const s = document.createElement('script');
-            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-            s.onload = () => {
-                console.log("%c[HDDT]%c Đã nạp thành công JSZip!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
-                resolve(true);
-            };
-            s.onerror = () => reject(new Error("Không thể tải thư viện JSZip từ CDN!"));
+            s.src = url;
+            s.onload = () => resolve(true);
+            s.onerror = () => reject(new Error("Lỗi nạp thư viện: " + url));
             document.head.appendChild(s);
         });
     }
 
     try {
-        await loadJSZip();
+        if (typeof JSZip === 'undefined') {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+        }
+        // Nạp bản SheetJS có hỗ trợ Style (Màu nền, Border, Font)
+        await loadScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
+        console.log("%c[HDDT]%c Đã nạp thành công JSZip & xlsx-js-style!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
     } catch (e) {
         alert(e.message);
         return;
@@ -41,31 +42,69 @@
         return null;
     }
 
-    // 3. Diễn giải Trạng thái hóa đơn (tthai)
-    function mapTrangThaiHDon(tthai) {
-        switch (Number(tthai)) {
-            case 1: return '<span style="color: #16a34a; font-weight: 500;">Hóa đơn gốc</span>';
-            case 2: return '<span style="color: #2563eb; font-weight: 500;">HĐ thay thế</span>';
-            case 3: return '<span style="color: #d97706; font-weight: 500;">HĐ điều chỉnh</span>';
-            case 4: return '<span style="color: #dc2626; font-weight: 500;">HĐ bị xóa bỏ</span>';
-            case 5: return '<span style="color: #9333ea; font-weight: 500;">HĐ bị hủy</span>';
-            default: return (tthai !== null && tthai !== undefined) ? `Khác (${tthai})` : '-';
+    // 3. Phân loại trạng thái và gán mã màu
+    function parseInvoiceStatus(item) {
+        const tchat = Number(item.tchat);
+        const tthai = Number(item.tthai);
+        const hasGocInfo = Boolean((item.khhdgoc && item.khhdgoc.trim()) || (item.shdgoc && String(item.shdgoc).trim()));
+        const hasHsGocId = Boolean(item.hsgoc && String(item.hsgoc).trim());
+
+        let statusText = '';
+        let refText = '-';
+        let rowType = 'normal'; // normal, modified, replaced_source
+
+        // 1. HĐ ĐIỀU CHỈNH: khhdgoc/shdgoc có dữ liệu + tchat = 3 hoặc 5
+        if (hasGocInfo && (tchat === 3 || tchat === 5)) {
+            statusText = 'HĐ Điều chỉnh';
+            const note = item.gchdgoc ? ` (${item.gchdgoc})` : '';
+            refText = `Đ/c cho HĐ: ${item.shdgoc || ''} (${item.khhdgoc || ''})${note}`;
+            rowType = 'modified';
         }
+        // 2. HĐ BỊ ĐIỀU CHỈNH: hsgoc có ID + tthai = 5
+        else if (hasHsGocId && tthai === 5) {
+            statusText = 'HĐ Bị điều chỉnh';
+            refText = 'Gốc bị điều chỉnh';
+            rowType = 'replaced_source';
+        }
+        // 3. HĐ THAY THẾ: khhdgoc/shdgoc có dữ liệu + tchat = 2 hoặc 4
+        else if (hasGocInfo && (tchat === 2 || tchat === 4)) {
+            statusText = 'HĐ Thay thế';
+            refText = `Thay thế cho HĐ: ${item.shdgoc || ''} (${item.khhdgoc || ''})`;
+            rowType = 'modified';
+        }
+        // 4. HĐ BỊ THAY THẾ: tthai = 4
+        else if (tthai === 4) {
+            statusText = 'HĐ Bị thay thế';
+            refText = 'Đã bị thay thế (Hủy/Bỏ)';
+            rowType = 'replaced_source';
+        }
+        // 5. Hóa đơn gốc ban đầu
+        else if (tthai === 1 && tchat === 1) {
+            statusText = 'Hóa đơn gốc';
+            refText = '-';
+            rowType = 'normal';
+        } else {
+            statusText = `Khác (${item.tthai})`;
+            refText = '-';
+            rowType = 'normal';
+        }
+
+        return { statusText, refText, rowType };
     }
 
-    // 4. Diễn giải Kết quả xử lý CQT (ttxly)
-    function mapKetQuaXuLy(ttxly) {
+    // 4. Diễn giải Kết quả xử lý CQT
+    function mapKetQuaXuLyText(ttxly) {
         switch (Number(ttxly)) {
-            case 5: return '<span style="color: #16a34a;">Đã cấp mã CQT</span>';
-            case 6: return '<span style="color: #0284c7;">CQT đã nhận không mã</span>';
-            case 8: return '<span style="color: #0d9488;">Đã nhận HĐ MTT</span>';
-            case 1: return '<span style="color: #64748b;">Đã gửi CQT</span>';
-            case 2: return '<span style="color: #dc2626;">Lỗi từ chối</span>';
+            case 5: return 'Đã cấp mã CQT';
+            case 6: return 'CQT đã nhận không mã';
+            case 8: return 'Đã nhận HĐ MTT';
+            case 1: return 'Đã gửi CQT';
+            case 2: return 'Lỗi từ chối';
             default: return (ttxly !== null && ttxly !== undefined) ? `Trạng thái ${ttxly}` : '-';
         }
     }
 
-    // Xóa panel & modal cũ nếu đã chạy trước đó trong cùng session
+    // Dọn dẹp DOM cũ trước khi chèn mới
     const oldPanel = document.getElementById('api-hddt-panel');
     if (oldPanel) oldPanel.remove();
     const oldModal = document.getElementById('api-hddt-modal');
@@ -73,7 +112,7 @@
     const oldOverlay = document.getElementById('api-hddt-overlay');
     if (oldOverlay) oldOverlay.remove();
 
-    // 5. Chèn CSS giao diện
+    // 5. CSS giao diện (Bổ sung màu dòng cho bảng HTML)
     const style = document.createElement('style');
     style.innerHTML = `
         #api-hddt-panel {
@@ -96,7 +135,10 @@
         .a-btn-tab { flex: 1; padding: 5px 0; border: none; background: transparent; cursor: pointer; border-radius: 4px; font-weight: 600; font-size: 12px; color: #475569; }
         .a-btn-tab.active { background: #1677ff; color: #fff; }
         .a-select { width: 100%; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; background: #fff; }
-        .a-grid-m { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 8px 0; }
+        .a-grid-q { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
+        .a-btn-q { padding: 5px 0; border: 1px solid #93c5fd; background: #eff6ff; color: #1d4ed8; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 12px; }
+        .a-btn-q:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .a-grid-m { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0 8px 0; }
         .a-btn-m { padding: 6px 0; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 12px; }
         .a-btn-m:hover { background: #1677ff; color: #fff; border-color: #1677ff; }
 
@@ -107,7 +149,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 96vw;
-            max-width: 1450px;
+            max-width: 1550px;
             max-height: 88vh;
             background: #ffffff;
             border-radius: 12px;
@@ -139,9 +181,16 @@
         .modal-tbl { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
         .modal-tbl th, .modal-tbl td { border-bottom: 1px solid #e2e8f0; padding: 7px 9px; text-align: left; }
         .modal-tbl th { background: #f8fafc; position: sticky; top: 0; z-index: 2; font-weight: 600; color: #1e293b; }
+        
+        /* Màu nhận diện dòng trên web */
+        .row-warning-modified { background-color: #fef9c3 !important; } /* Nền vàng cam nhạt */
+        .row-danger-replaced { background-color: #fee2e2 !important; color: #991b1b !important; } /* Nền đỏ hồng nhạt */
+
         .btn-download-xml { background: #10b981; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
         .btn-download-xml:hover { background: #059669; }
         .btn-download-xml:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-excel { background: #047857; color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn-excel:hover { background: #065f46; }
     `;
     document.head.appendChild(style);
 
@@ -149,7 +198,7 @@
     const panel = document.createElement('div');
     panel.id = 'api-hddt-panel';
     panel.innerHTML = `
-        <div style="font-weight: 700; color: #0f172a; margin-bottom: 8px;">Tra Cứu HĐĐT (Tự Động Nạp Toàn Bộ)</div>
+        <div style="font-weight: 700; color: #0f172a; margin-bottom: 8px;">Tra Cứu HĐĐT (Theo Tháng / Quý)</div>
         <div class="a-row">
             <div class="a-btn-group" id="api-group-type">
                 <button class="a-btn-tab" data-val="sold">Bán ra</button>
@@ -178,8 +227,16 @@
                 <button id="api-next-y" style="width:24px;">+</button>
             </div>
         </div>
+        <div style="font-size: 11px; font-weight: 600; color: #475569; margin-top: 4px;">Tra cứu theo quý:</div>
+        <div class="a-grid-q">
+            <button class="a-btn-q" data-q="1">Quý 1</button>
+            <button class="a-btn-q" data-q="2">Quý 2</button>
+            <button class="a-btn-q" data-q="3">Quý 3</button>
+            <button class="a-btn-q" data-q="4">Quý 4</button>
+        </div>
+        <div style="font-size: 11px; font-weight: 600; color: #475569; margin-top: 8px;">Tra cứu theo tháng:</div>
         <div class="a-grid-m" id="api-months"></div>
-        <div id="api-status" style="font-size: 11px; color: #64748b; text-align: center; min-height: 14px;">Bấm tháng để tải dữ liệu</div>
+        <div id="api-status" style="font-size: 11px; color: #64748b; text-align: center; min-height: 14px;">Chọn tháng hoặc quý để tải</div>
     `;
     document.body.appendChild(panel);
 
@@ -224,6 +281,7 @@
                         <th style="text-align: right;">Tiền phí</th>
                         <th style="text-align: right;">Tổng tiền</th>
                         <th style="text-align: center;">Trạng thái HĐ</th>
+                        <th>Hóa đơn liên quan</th>
                         <th style="text-align: center;">Kết quả xử lý</th>
                         <th style="text-align: center; width: 85px;">Thao tác</th>
                     </tr>
@@ -233,9 +291,14 @@
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span id="modal-summary" style="font-size: 12px; color: #475569;"></span>
-            <button id="btn-download-selected" style="background: #1677ff; color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
-                Tải các mục đã chọn (XML)
-            </button>
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-export-excel" class="btn-excel">
+                    Xuất Excel Kế Toán (.xlsx)
+                </button>
+                <button id="btn-download-selected" style="background: #1677ff; color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                    Tải các mục đã chọn (XML)
+                </button>
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -244,13 +307,10 @@
     let isFetching = false;
     let isBatchDownloading = false;
     let currentInvoices = [];
+    let currentPeriodContext = { isPurchase: true, periodTitle: '', year: 2026 };
 
     // 7. Giải nén ZIP trong bộ nhớ và lưu duy nhất file invoice.xml
     async function extractAndSaveXml(zipBuffer, item) {
-        if (typeof JSZip === 'undefined') {
-            await loadJSZip();
-        }
-
         const zip = await JSZip.loadAsync(zipBuffer);
 
         let xmlFile = zip.file("invoice.xml");
@@ -276,7 +336,7 @@
         a.remove();
     }
 
-    // 8. Tải và xử lý giải nén bất đồng bộ (chống 429)
+    // 8. Tải và xử lý giải nén bất đồng bộ
     async function downloadXmlAsync(item) {
         const token = getJwtToken();
         const baseEndpoint = isCurrentSco ? 'sco-query' : 'query';
@@ -321,8 +381,85 @@
         return false;
     }
 
-    // 9. Nạp toàn bộ trang bằng con trỏ state
-    async function queryAllPages(month, year) {
+    // 9. Nạp hóa đơn của 1 tháng
+    async function fetchInvoicesOfMonth(month, year, isPurchase, ttxly, apiType, actionEncoded, pageSize, statusEl, labelPrefix) {
+        const token = getJwtToken();
+        const pad = (n) => String(n).padStart(2, '0');
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        const fromDateStr = `01/${pad(month)}/${year}T00:00:00`;
+        const toDateStr = `${pad(daysInMonth)}/${pad(month)}/${year}T23:59:59`;
+
+        const direction = isPurchase ? 'purchase' : 'sold';
+        const searchParam = `tdlap=ge=${fromDateStr};tdlap=le=${toDateStr};ttxly==${ttxly}`;
+        const baseUrl = `https://hoadondientu.gdt.gov.vn/api/${apiType}/invoices/${direction}?sort=tdlap:desc&size=${pageSize}`;
+
+        let monthInvoices = [];
+        let currentState = null;
+        let pageNum = 1;
+        let totalCount = 0;
+
+        while (true) {
+            statusEl.textContent = `${labelPrefix} [T${pad(month)}] Trang ${pageNum}... (${monthInvoices.length} HĐ)`;
+            statusEl.style.color = "#1677ff";
+
+            let fetchUrl = `${baseUrl}`;
+            if (currentState) {
+                fetchUrl += `&state=${encodeURIComponent(currentState)}`;
+            }
+            fetchUrl += `&search=${searchParam}`;
+
+            let res = null;
+            let retryCount = 0;
+
+            while (retryCount < 3) {
+                res = await fetch(fetchUrl, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json, text/plain, */*',
+                        'Accept-Language': 'vi',
+                        'Authorization': `Bearer ${token}`,
+                        'Action': actionEncoded,
+                        'End-Point': '/tra-cuu/tra-cuu-hoa-don',
+                        'Request-Id': generateUUID()
+                    }
+                });
+
+                if (res.status === 429) {
+                    retryCount++;
+                    statusEl.textContent = `Máy chủ bận (429), thử lại lần ${retryCount}...`;
+                    statusEl.style.color = "#ea580c";
+                    await new Promise(r => setTimeout(r, 2000));
+                } else {
+                    break;
+                }
+            }
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || `Mã HTTP: ${res.status}`);
+            }
+
+            const list = data.datas || [];
+            totalCount = (typeof data.total === 'number') ? data.total : list.length;
+            monthInvoices = monthInvoices.concat(list);
+
+            if (list.length === 0 || !data.state || monthInvoices.length >= totalCount) {
+                break;
+            }
+
+            currentState = data.state;
+            pageNum++;
+
+            await new Promise(r => setTimeout(r, 1200));
+        }
+
+        return monthInvoices;
+    }
+
+    // 10. Điều phối truy vấn theo Tháng/Quý & Sắp xếp dữ liệu
+    async function queryPeriod(monthsList, periodTitle, year) {
         if (isFetching) {
             console.warn("Đang có tiến trình truy vấn, vui lòng đợi...");
             return;
@@ -339,6 +476,8 @@
         const isPurchase = document.querySelector('#api-group-type .active').getAttribute('data-val') === 'purchase';
         const loaiHD = document.getElementById('api-loai-hd').value;
         const pageSize = document.getElementById('api-page-size').value;
+
+        currentPeriodContext = { isPurchase, periodTitle, year };
 
         let ttxly = 5;
         let apiType = 'query';
@@ -359,85 +498,48 @@
         }
 
         isCurrentSco = (apiType === 'sco-query');
-
-        const pad = (n) => String(n).padStart(2, '0');
-        const daysInMonth = new Date(year, month, 0).getDate();
-
-        const fromDateStr = `01/${pad(month)}/${year}T00:00:00`;
-        const toDateStr = `${pad(daysInMonth)}/${pad(month)}/${year}T23:59:59`;
-
-        const direction = isPurchase ? 'purchase' : 'sold';
         const actionEncoded = encodeURIComponent(actionRaw);
-
-        const searchParam = `tdlap=ge=${fromDateStr};tdlap=le=${toDateStr};ttxly==${ttxly}`;
-        const baseUrl = `https://hoadondientu.gdt.gov.vn/api/${apiType}/invoices/${direction}?sort=tdlap:desc&size=${pageSize}`;
-
         const statusEl = document.getElementById('api-status');
         currentInvoices = [];
-        let currentState = null;
-        let pageNum = 1;
-        let totalCount = 0;
 
         try {
-            while (true) {
-                statusEl.textContent = `Đang nạp trang ${pageNum}... (Đã lấy ${currentInvoices.length} HĐ)`;
-                statusEl.style.color = "#1677ff";
+            for (let i = 0; i < monthsList.length; i++) {
+                const m = monthsList[i];
+                const prefix = monthsList.length > 1 ? `[${periodTitle}] (${i + 1}/${monthsList.length})` : '';
+                const mList = await fetchInvoicesOfMonth(m, year, isPurchase, ttxly, apiType, actionEncoded, pageSize, statusEl, prefix);
+                currentInvoices = currentInvoices.concat(mList);
 
-                let fetchUrl = `${baseUrl}`;
-                if (currentState) {
-                    fetchUrl += `&state=${encodeURIComponent(currentState)}`;
+                if (i < monthsList.length - 1) {
+                    await new Promise(r => setTimeout(r, 1200));
                 }
-                fetchUrl += `&search=${searchParam}`;
-
-                let res = null;
-                let retryCount = 0;
-
-                while (retryCount < 3) {
-                    res = await fetch(fetchUrl, {
-                        method: 'GET',
-                        credentials: 'include',
-                        headers: {
-                            'Accept': 'application/json, text/plain, */*',
-                            'Accept-Language': 'vi',
-                            'Authorization': `Bearer ${token}`,
-                            'Action': actionEncoded,
-                            'End-Point': '/tra-cuu/tra-cuu-hoa-don',
-                            'Request-Id': generateUUID()
-                        }
-                    });
-
-                    if (res.status === 429) {
-                        retryCount++;
-                        statusEl.textContent = `Máy chủ bận (429), thử lại lần ${retryCount}...`;
-                        statusEl.style.color = "#ea580c";
-                        await new Promise(r => setTimeout(r, 2000));
-                    } else {
-                        break;
-                    }
-                }
-
-                const data = await res.json();
-                if (!res.ok) {
-                    throw new Error(data.message || `Mã HTTP: ${res.status}`);
-                }
-
-                const list = data.datas || [];
-                totalCount = (typeof data.total === 'number') ? data.total : list.length;
-                currentInvoices = currentInvoices.concat(list);
-
-                if (list.length === 0 || !data.state || currentInvoices.length >= totalCount) {
-                    break;
-                }
-
-                currentState = data.state;
-                pageNum++;
-
-                await new Promise(r => setTimeout(r, 1200));
             }
 
-            statusEl.textContent = `Hoàn tất: Đã lấy ${currentInvoices.length}/${totalCount} hóa đơn!`;
+            // SẮP XẾP DỮ LIỆU ĐA TẦNG:
+            currentInvoices.sort((a, b) => {
+                const dateA = a.tdlap || '';
+                const dateB = b.tdlap || '';
+                if (dateA !== dateB) {
+                    return dateB.localeCompare(dateA);
+                }
+
+                if (!isPurchase) {
+                    // Bán ra: Số hóa đơn giảm dần
+                    return Number(b.shdon || 0) - Number(a.shdon || 0);
+                } else {
+                    // Mua vào: Nhà cung cấp tăng dần -> Số hóa đơn giảm dần
+                    const supplierA = (a.nbten || a.nbmst || '').trim();
+                    const supplierB = (b.nbten || b.nbmst || '').trim();
+                    const cmpSupplier = supplierA.localeCompare(supplierB, 'vi');
+                    if (cmpSupplier !== 0) {
+                        return cmpSupplier;
+                    }
+                    return Number(b.shdon || 0) - Number(a.shdon || 0);
+                }
+            });
+
+            statusEl.textContent = `Hoàn tất: ${periodTitle} năm ${year} lấy được ${currentInvoices.length} HĐ!`;
             statusEl.style.color = "#10b981";
-            showModal(currentInvoices, month, year, isPurchase, totalCount);
+            showModal(currentInvoices, periodTitle, year, isPurchase, currentInvoices.length, monthsList[0]);
 
         } catch (err) {
             statusEl.textContent = "Lỗi: " + err.message;
@@ -448,27 +550,45 @@
         }
     }
 
-    // 10. Hiển thị bảng Modal dữ liệu
-    function showModal(list, month, year, isPurchase, totalCount) {
+    // 11. Hiển thị bảng Modal dữ liệu (Có màu sắc theo dòng)
+    function showModal(list, periodTitle, year, isPurchase, totalCount, defaultStartMonth) {
         const tbody = document.getElementById('modal-tbody');
         tbody.innerHTML = '';
 
         document.getElementById('modal-title').textContent =
-            `Danh sách Hóa đơn ${isPurchase ? 'Mua vào' : 'Bán ra'} - Tháng ${month}/${year} (Đã nạp: ${list.length}/${totalCount})`;
+            `Danh sách Hóa đơn ${isPurchase ? 'Mua vào' : 'Bán ra'} - ${periodTitle}/${year} (Tổng cộng: ${totalCount} HĐ)`;
 
         const pad = (n) => String(n).padStart(2, '0');
         const filterInput = document.getElementById('filter-date-after');
-        if (filterInput) {
-            filterInput.value = `${year}-${pad(month)}-01`;
+        if (filterInput && defaultStartMonth) {
+            filterInput.value = `${year}-${pad(defaultStartMonth)}-01`;
         }
 
         const fmtMoney = (val) => (val !== null && val !== undefined && val !== '') ? Number(val).toLocaleString('vi-VN') : '0';
 
         list.forEach((item, index) => {
             const tr = document.createElement('tr');
-            const partnerName = isPurchase ? item.nbten : item.nmten;
-            const partnerMst = isPurchase ? item.nbmst : item.nmmst;
+            
+            // Xử lý thông tin đối tác: Nếu nmten = null thì lấy nmtnmua
+            let partnerName = '-';
+            let partnerMst = '-';
+            if (isPurchase) {
+                partnerName = item.nbten || '-';
+                partnerMst = item.nbmst || '-';
+            } else {
+                partnerName = (item.nmten && item.nmten.trim()) ? item.nmten : (item.nmtnmua || '-');
+                partnerMst = item.nmmst || '-';
+            }
+
             const dateOnly = item.tdlap ? item.tdlap.substring(0, 10) : '';
+            const { statusText, refText, rowType } = parseInvoiceStatus(item);
+
+            // Gán class màu cho dòng
+            if (rowType === 'modified') {
+                tr.className = 'row-warning-modified';
+            } else if (rowType === 'replaced_source') {
+                tr.className = 'row-danger-replaced';
+            }
 
             tr.innerHTML = `
                 <td><input type="checkbox" class="chk-item" data-index="${index}" data-date="${dateOnly}"></td>
@@ -476,15 +596,16 @@
                 <td><strong>${item.khmshdon || ''}${item.khhdon || ''}</strong></td>
                 <td><span style="color: #1677ff; font-weight: 600;">${item.shdon}</span></td>
                 <td>${dateOnly}</td>
-                <td style="max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${partnerName || ''}">${partnerName || '-'}</td>
-                <td>${partnerMst || '-'}</td>
+                <td style="max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${partnerName}">${partnerName}</td>
+                <td>${partnerMst}</td>
                 <td style="text-align: center; color: #475569;">${item.dvtte || 'VND'}</td>
                 <td style="text-align: right;">${fmtMoney(item.tgtcthue)}</td>
                 <td style="text-align: right;">${fmtMoney(item.tgtthue)}</td>
                 <td style="text-align: right; color: #64748b;">${fmtMoney(item.tgtphi)}</td>
                 <td style="text-align: right; font-weight: 600; color: #0f172a;">${fmtMoney(item.tgtttbso)}</td>
-                <td style="text-align: center;">${mapTrangThaiHDon(item.tthai)}</td>
-                <td style="text-align: center;">${mapKetQuaXuLy(item.ttxly)}</td>
+                <td style="text-align: center;"><b>${statusText}</b></td>
+                <td style="font-size: 11px;">${refText}</td>
+                <td style="text-align: center;">${mapKetQuaXuLyText(item.ttxly)}</td>
                 <td style="text-align: center;">
                     <button class="btn-download-xml" data-index="${index}">Tải XML</button>
                 </td>
@@ -517,7 +638,263 @@
         document.getElementById('modal-summary').textContent = `Đã chọn: ${selectedCount}/${total} hóa đơn.`;
     }
 
-    // 11. Đóng Modal
+    // 12. Xuất File Excel Kế Toán có màu nền, viền kẻ và font chữ chuyên nghiệp
+    function exportToProfessionalExcel() {
+        if (!currentInvoices || currentInvoices.length === 0) {
+            alert("Không có dữ liệu để xuất file Excel!");
+            return;
+        }
+
+        const isPurchase = currentPeriodContext.isPurchase;
+        const titleText = isPurchase 
+            ? `BẢNG KÊ HÓA ĐƠN ĐIỆN TỬ MUA VÀO - ${currentPeriodContext.periodTitle.toUpperCase()} NĂM ${currentPeriodContext.year}`
+            : `BẢNG KÊ HÓA ĐƠN ĐIỆN TỬ BÁN RA - ${currentPeriodContext.periodTitle.toUpperCase()} NĂM ${currentPeriodContext.year}`;
+
+        // Header thông tin tiêu đề kế toán
+        const rows = [
+            [titleText],
+            [`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}`],
+            [] // Dòng trống
+        ];
+
+        // Dòng tiêu đề bảng
+        const tableHeaders = [
+            "STT",
+            "Mẫu số",
+            "Ký hiệu",
+            "Số hóa đơn",
+            "Ngày lập",
+            isPurchase ? "Tên người bán" : "Tên người mua",
+            isPurchase ? "Mã số thuế người bán" : "Mã số thuế người mua",
+            "ĐVT",
+            "Doanh số chưa thuế",
+            "Tiền thuế GTGT",
+            "Tiền thuế suất khác/Phí",
+            "Tổng tiền thanh toán",
+            "Trạng thái hóa đơn",
+            "Hóa đơn liên quan",
+            "Kết quả kiểm tra CQT"
+        ];
+        rows.push(tableHeaders);
+
+        let sumChuaThue = 0;
+        let sumThue = 0;
+        let sumPhi = 0;
+        let sumTong = 0;
+
+        const rowMetaList = []; // Lưu trữ trạng thái để tô màu dòng trong Excel
+
+        // Điền dữ liệu
+        currentInvoices.forEach((item, idx) => {
+            let partnerName = '';
+            let partnerMst = '';
+            if (isPurchase) {
+                partnerName = item.nbten || '-';
+                partnerMst = item.nbmst || '-';
+            } else {
+                partnerName = (item.nmten && item.nmten.trim()) ? item.nmten : (item.nmtnmua || '-');
+                partnerMst = item.nmmst || '-';
+            }
+
+            const valChuaThue = Number(item.tgtcthue) || 0;
+            const valThue = Number(item.tgtthue) || 0;
+            const valPhi = Number(item.tgtphi) || 0;
+            const valTong = Number(item.tgtttbso) || 0;
+
+            sumChuaThue += valChuaThue;
+            sumThue += valThue;
+            sumPhi += valPhi;
+            sumTong += valTong;
+
+            const { statusText, refText, rowType } = parseInvoiceStatus(item);
+            rowMetaList.push(rowType);
+
+            rows.push([
+                idx + 1,
+                item.khmshdon || 1,
+                item.khhdon || '',
+                item.shdon || '',
+                item.tdlap ? item.tdlap.substring(0, 10) : '',
+                partnerName,
+                partnerMst,
+                item.dvtte || 'VND',
+                valChuaThue,
+                valThue,
+                valPhi,
+                valTong,
+                statusText,
+                refText,
+                mapKetQuaXuLyText(item.ttxly)
+            ]);
+        });
+
+        // Dòng TỔNG CỘNG
+        rows.push([
+            "TỔNG CỘNG", "", "", "", "", "", "", "",
+            sumChuaThue,
+            sumThue,
+            sumPhi,
+            sumTong,
+            "", "", ""
+        ]);
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+
+        // Định dạng độ rộng cột
+        ws['!cols'] = [
+            { wch: 6 },  // STT
+            { wch: 8 },  // Mẫu số
+            { wch: 10 }, // Ký hiệu
+            { wch: 12 }, // Số HĐ
+            { wch: 12 }, // Ngày lập
+            { wch: 40 }, // Tên đối tác
+            { wch: 16 }, // MST
+            { wch: 6 },  // ĐVT
+            { wch: 18 }, // Tiền chưa thuế
+            { wch: 15 }, // Thuế GTGT
+            { wch: 15 }, // Phí
+            { wch: 18 }, // Tổng tiền
+            { wch: 18 }, // Trạng thái
+            { wch: 35 }, // HĐ liên quan
+            { wch: 22 }  // Kết quả CQT
+        ];
+
+        // Ghép ô tiêu đề
+        ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
+            { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
+            { s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 7 } }
+        ];
+
+        // Định nghĩa bộ Style chuẩn kế toán chuyên nghiệp
+        const borderThin = {
+            top: { style: "thin", color: { rgb: "D1D5DB" } },
+            bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+            left: { style: "thin", color: { rgb: "D1D5DB" } },
+            right: { style: "thin", color: { rgb: "D1D5DB" } }
+        };
+
+        const borderDoubleBottom = {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "double", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "D1D5DB" } },
+            right: { style: "thin", color: { rgb: "D1D5DB" } }
+        };
+
+        // Style cho dòng Tiêu đề bảng (Header - Hàng 4)
+        const headerStyle = {
+            font: { name: "Times New Roman", sz: 11, bold: true, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "1E3A8A" } }, // Xanh than đậm thanh lịch
+            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            border: borderThin
+        };
+
+        // Style dòng tổng cộng
+        const totalStyleNumber = {
+            font: { name: "Times New Roman", sz: 11, bold: true, color: { rgb: "000000" } },
+            fill: { fgColor: { rgb: "F1F5F9" } },
+            alignment: { horizontal: "right", vertical: "center" },
+            border: borderDoubleBottom
+        };
+
+        const totalStyleText = {
+            font: { name: "Times New Roman", sz: 11, bold: true, color: { rgb: "000000" } },
+            fill: { fgColor: { rgb: "F1F5F9" } },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: borderDoubleBottom
+        };
+
+        // Style dòng tiêu đề báo cáo
+        if (ws['A1']) {
+            ws['A1'].s = {
+                font: { name: "Times New Roman", sz: 15, bold: true, color: { rgb: "1E3A8A" } },
+                alignment: { horizontal: "left", vertical: "center" }
+            };
+        }
+        if (ws['A2']) {
+            ws['A2'].s = {
+                font: { name: "Times New Roman", sz: 10, italic: true, color: { rgb: "6B7280" } },
+                alignment: { horizontal: "left", vertical: "center" }
+            };
+        }
+
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        const headerRowIndex = 3; // Index hàng 4 trong Excel
+        const totalRowIndex = range.e.r;
+
+        // Áp dụng định dạng cho từng ô trong bảng tính
+        for (let R = headerRowIndex; R <= range.e.r; ++R) {
+            for (let C = 0; C <= range.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+
+                // 1. Dòng Header cột
+                if (R === headerRowIndex) {
+                    ws[cellRef].s = headerStyle;
+                    continue;
+                }
+
+                // 2. Dòng TỔNG CỘNG cuối bảng
+                if (R === totalRowIndex) {
+                    if (C >= 8 && C <= 11) {
+                        ws[cellRef].s = totalStyleNumber;
+                        ws[cellRef].z = '#,##0';
+                    } else {
+                        ws[cellRef].s = totalStyleText;
+                    }
+                    continue;
+                }
+
+                // 3. Các dòng dữ liệu chi tiết
+                const dataIndex = R - (headerRowIndex + 1);
+                const rowType = rowMetaList[dataIndex] || 'normal';
+
+                // Xác định màu nền và màu chữ theo trạng thái
+                let cellFill = { fgColor: { rgb: "FFFFFF" } };
+                let cellFontColor = { rgb: "000000" };
+                let isBold = false;
+
+                if (rowType === 'modified') {
+                    cellFill = { fgColor: { rgb: "FEF3C7" } }; // Vàng cam nhạt
+                    cellFontColor = { rgb: "92400E" }; // Nâu cam
+                    isBold = (C === 12);
+                } else if (rowType === 'replaced_source') {
+                    cellFill = { fgColor: { rgb: "FEE2E2" } }; // Đỏ hồng nhạt
+                    cellFontColor = { rgb: "991B1B" }; // Đỏ đậm
+                    isBold = (C === 12);
+                }
+
+                // Căn lề theo từng loại cột
+                let alignH = "left";
+                if (C === 0 || C === 1 || C === 2 || C === 3 || C === 4 || C === 6 || C === 7 || C === 12 || C === 14) {
+                    alignH = "center";
+                } else if (C >= 8 && C <= 11) {
+                    alignH = "right";
+                }
+
+                ws[cellRef].s = {
+                    font: { name: "Times New Roman", sz: 11, bold: isBold, color: cellFontColor },
+                    fill: cellFill,
+                    alignment: { horizontal: alignH, vertical: "center" },
+                    border: borderThin
+                };
+
+                // Định dạng tiền tệ
+                if (C >= 8 && C <= 11 && typeof ws[cellRef].v === 'number') {
+                    ws[cellRef].z = '#,##0';
+                }
+            }
+        }
+
+        const sheetName = isPurchase ? "HoaDonMuaVao" : "HoaDonBanRa";
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+        const fileName = `Bang_Ke_HDDT_${isPurchase ? 'Mua_Vao' : 'Ban_Ra'}_${currentPeriodContext.periodTitle}_${currentPeriodContext.year}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+    }
+
+    // 13. Đóng Modal
     document.getElementById('btn-close-modal').onclick = () => {
         overlay.style.display = 'none';
         modal.style.display = 'none';
@@ -569,7 +946,10 @@
         updateSummary();
     };
 
-    // 12. Tải hàng loạt tuần tự: Giải nén và lưu file XML
+    // 14. Bắt sự kiện Xuất Excel
+    document.getElementById('btn-export-excel').onclick = exportToProfessionalExcel;
+
+    // 15. Tải hàng loạt tuần tự: Giải nén và lưu file XML
     document.getElementById('btn-download-selected').onclick = async () => {
         if (isBatchDownloading) return;
 
@@ -596,7 +976,6 @@
 
             await downloadXmlAsync(inv);
 
-            // Khoảng nghỉ an toàn giữa các file để tránh rate-limit
             await new Promise(r => setTimeout(r, 900));
         }
 
@@ -606,7 +985,7 @@
         isBatchDownloading = false;
     };
 
-    // 13. Điều khiển Panel Widget
+    // 16. Điều khiển Panel Widget
     document.querySelectorAll('#api-group-type .a-btn-tab').forEach(btn => {
         btn.onclick = function () {
             document.querySelectorAll('#api-group-type .a-btn-tab').forEach(b => b.classList.remove('active'));
@@ -618,14 +997,34 @@
     document.getElementById('api-prev-y').onclick = () => yearInput.value = parseInt(yearInput.value) - 1;
     document.getElementById('api-next-y').onclick = () => yearInput.value = parseInt(yearInput.value) + 1;
 
+    // Nút chọn Quý
+    document.querySelectorAll('.a-btn-q').forEach(btn => {
+        btn.onclick = () => {
+            const q = parseInt(btn.getAttribute('data-q'));
+            const y = parseInt(yearInput.value);
+            const quarterMap = {
+                1: [1, 2, 3],
+                2: [4, 5, 6],
+                3: [7, 8, 9],
+                4: [10, 11, 12]
+            };
+            queryPeriod(quarterMap[q], `Quý ${q}`, y);
+        };
+    });
+
+    // Nút chọn Tháng
     const monthsContainer = document.getElementById('api-months');
     for (let m = 1; m <= 12; m++) {
         const btn = document.createElement('button');
         btn.className = 'a-btn-m';
         btn.textContent = `T${m < 10 ? '0' + m : m}`;
-        btn.onclick = () => queryAllPages(m, parseInt(yearInput.value));
+        btn.onclick = () => {
+            const y = parseInt(yearInput.value);
+            const padM = m < 10 ? '0' + m : m;
+            queryPeriod([m], `Tháng ${padM}`, y);
+        };
         monthsContainer.appendChild(btn);
     }
 
-    console.log("%c[HDDT]%c Widget tra cứu & giải nén XML đã sẵn sàng ở góc dưới bên phải!", "color:#1677ff;font-weight:bold;", "color:#334155;");
+    console.log("%c[HDDT]%c Đã cập nhật hoàn chỉnh: Phân màu HĐ Thay thế/Điều chỉnh trên Web & Bảng kê Excel có Viền + Màu nền!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
 })();
