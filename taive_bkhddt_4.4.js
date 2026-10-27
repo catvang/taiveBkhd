@@ -111,8 +111,9 @@
         `;
         Object.assign(btn.style, {
             position: 'fixed',
-            bottom: '26px',
-            right: '26px',
+            top: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',   // Dịch chuyển tâm nút vào đúng giữa
             zIndex: '999999',
             background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
             color: '#ffffff',
@@ -131,11 +132,11 @@
         });
 
         btn.onmouseover = () => {
-            btn.style.transform = 'translateY(-2px)';
+            btn.style.transform = 'translateX(-50%) translateY(-2px)';
             btn.style.boxShadow = '0 15px 30px -5px rgba(37, 99, 235, 0.55), 0 10px 12px -5px rgba(37, 99, 235, 0.35)';
         };
         btn.onmouseout = () => {
-            btn.style.transform = 'translateY(0)';
+            btn.style.transform = 'translateX(-50%) translateY(0)';
             btn.style.boxShadow = '0 10px 25px -5px rgba(37, 99, 235, 0.45), 0 8px 10px -6px rgba(37, 99, 235, 0.3)';
         };
         btn.onclick = () => showDialog();
