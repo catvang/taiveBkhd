@@ -118,7 +118,7 @@
         #api-hddt-panel {
             position: fixed;
             bottom: 25px;
-            right: 25px;
+            left: 25px;
             width: 330px;
             background: #ffffff;
             border-radius: 12px;
