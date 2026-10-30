@@ -16,7 +16,6 @@
         if (typeof JSZip === 'undefined') {
             await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
         }
-        // Nạp bản SheetJS có hỗ trợ Style (Màu nền, Border, Font)
         await loadScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js');
         console.log("%c[HDDT]%c Đã nạp thành công JSZip & xlsx-js-style!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
     } catch (e) {
@@ -51,35 +50,26 @@
 
         let statusText = '';
         let refText = '-';
-        let rowType = 'normal'; // normal, modified, replaced_source
+        let rowType = 'normal';
 
-        // 1. HĐ ĐIỀU CHỈNH: khhdgoc/shdgoc có dữ liệu + tchat = 3 hoặc 5
         if (hasGocInfo && (tchat === 3 || tchat === 5)) {
             statusText = 'HĐ Điều chỉnh';
             const note = item.gchdgoc ? ` (${item.gchdgoc})` : '';
             refText = `Đ/c cho HĐ: ${item.shdgoc || ''} (${item.khhdgoc || ''})${note}`;
             rowType = 'modified';
-        }
-        // 2. HĐ BỊ ĐIỀU CHỈNH: hsgoc có ID + tthai = 5
-        else if (hasHsGocId && tthai === 5) {
+        } else if (hasHsGocId && tthai === 5) {
             statusText = 'HĐ Bị điều chỉnh';
             refText = 'Gốc bị điều chỉnh';
             rowType = 'replaced_source';
-        }
-        // 3. HĐ THAY THẾ: khhdgoc/shdgoc có dữ liệu + tchat = 2 hoặc 4
-        else if (hasGocInfo && (tchat === 2 || tchat === 4)) {
+        } else if (hasGocInfo && (tchat === 2 || tchat === 4)) {
             statusText = 'HĐ Thay thế';
             refText = `Thay thế cho HĐ: ${item.shdgoc || ''} (${item.khhdgoc || ''})`;
             rowType = 'modified';
-        }
-        // 4. HĐ BỊ THAY THẾ: tthai = 4
-        else if (tthai === 4) {
+        } else if (tthai === 4) {
             statusText = 'HĐ Bị thay thế';
             refText = 'Đã bị thay thế (Hủy/Bỏ)';
             rowType = 'replaced_source';
-        }
-        // 5. Hóa đơn gốc ban đầu
-        else if (tthai === 1 && tchat === 1) {
+        } else if (tthai === 1 && tchat === 1) {
             statusText = 'Hóa đơn gốc';
             refText = '-';
             rowType = 'normal';
@@ -112,7 +102,7 @@
     const oldOverlay = document.getElementById('api-hddt-overlay');
     if (oldOverlay) oldOverlay.remove();
 
-    // 5. CSS giao diện (Bổ sung màu dòng cho bảng HTML)
+    // 5. CSS giao diện
     const style = document.createElement('style');
     style.innerHTML = `
         #api-hddt-panel {
@@ -155,7 +145,7 @@
             border-radius: 12px;
             box-shadow: 0 15px 50px rgba(0,0,0,0.35);
             z-index: 999999;
-            padding: 20px;
+            padding: 16px 20px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             flex-direction: column;
         }
@@ -169,22 +159,51 @@
         .modal-filter-bar {
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             padding: 8px 12px;
             border-radius: 8px;
             margin-top: 10px;
             font-size: 12px;
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        .modal-tbl-wrap { overflow: auto; flex: 1; margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 6px; }
+        .modal-filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .input-mst-filter {
+            width: 140px;
+            padding: 4px 8px;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            font-weight: 700;
+            color: #0369a1;
+            font-size: 12px;
+            outline: none;
+        }
+        .input-mst-filter:focus {
+            border-color: #0284c7;
+            box-shadow: 0 0 0 2px rgba(2,132,199,0.2);
+        }
+        .badge-count {
+            font-weight: 700;
+            color: #059669;
+            background: #ecfdf5;
+            padding: 2px 7px;
+            border-radius: 4px;
+            border: 1px solid #a7f3d0;
+            font-size: 11px;
+        }
+        .modal-tbl-wrap { overflow: auto; flex: 1; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 6px; }
         .modal-tbl { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
         .modal-tbl th, .modal-tbl td { border-bottom: 1px solid #e2e8f0; padding: 7px 9px; text-align: left; }
         .modal-tbl th { background: #f8fafc; position: sticky; top: 0; z-index: 2; font-weight: 600; color: #1e293b; }
         
-        /* Màu nhận diện dòng trên web */
-        .row-warning-modified { background-color: #fef9c3 !important; } /* Nền vàng cam nhạt */
-        .row-danger-replaced { background-color: #fee2e2 !important; color: #991b1b !important; } /* Nền đỏ hồng nhạt */
+        .row-warning-modified { background-color: #fef9c3 !important; }
+        .row-danger-replaced { background-color: #fee2e2 !important; color: #991b1b !important; }
 
         .btn-download-xml { background: #10b981; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
         .btn-download-xml:hover { background: #059669; }
@@ -253,22 +272,37 @@
         </div>
         
         <div class="modal-filter-bar">
-            <span style="font-weight: 600; color: #334155;">Chọn nhanh theo ngày phát sinh:</span>
-            <span style="color: #64748b;">Từ ngày:</span>
-            <input type="date" id="filter-date-after" style="padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px;">
-            <button id="btn-apply-date-filter" style="background: #2563eb; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; font-weight: 500; cursor: pointer;">
-                Chọn các HĐ từ ngày này trở đi
-            </button>
-            <button id="btn-clear-selection" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 4px; cursor: pointer;">
-                Bỏ chọn tất cả
-            </button>
+            <!-- Cụm Lọc theo MST và Tích chọn đang lọc -->
+            <div class="modal-filter-group">
+                <span style="font-weight: 700; color: #0f172a;">⚡ Lọc MST:</span>
+                <input type="text" id="filter-mst-input" class="input-mst-filter" placeholder="Nhập MST cần lọc...">
+                <span class="badge-count" id="badge-match-count">0 dòng</span>
+                <button id="btn-select-visible" style="background: #0284c7; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; font-weight: 600; cursor: pointer;">
+                    ☑ Chọn tất cả đang lọc
+                </button>
+                <button id="btn-reset-mst-filter" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                    ↺ Hiện hết
+                </button>
+            </div>
+
+            <!-- Cụm Lọc theo Ngày -->
+            <div class="modal-filter-group">
+                <span style="font-weight: 600; color: #334155;">Từ ngày:</span>
+                <input type="date" id="filter-date-after" style="padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px;">
+                <button id="btn-apply-date-filter" style="background: #2563eb; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; font-weight: 500; cursor: pointer;">
+                    Chọn từ ngày này
+                </button>
+                <button id="btn-clear-selection" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                    Bỏ chọn
+                </button>
+            </div>
         </div>
 
         <div class="modal-tbl-wrap">
             <table class="modal-tbl">
                 <thead>
                     <tr>
-                        <th style="width: 30px;"><input type="checkbox" id="chk-all"></th>
+                        <th style="width: 30px;"><input type="checkbox" id="chk-all" title="Chọn tất cả các dòng đang hiển thị"></th>
                         <th style="width: 35px;">STT</th>
                         <th>Ký hiệu</th>
                         <th>Số HĐ</th>
@@ -514,7 +548,6 @@
                 }
             }
 
-            // SẮP XẾP DỮ LIỆU ĐA TẦNG:
             currentInvoices.sort((a, b) => {
                 const dateA = a.tdlap || '';
                 const dateB = b.tdlap || '';
@@ -523,10 +556,8 @@
                 }
 
                 if (!isPurchase) {
-                    // Bán ra: Số hóa đơn giảm dần
                     return Number(b.shdon || 0) - Number(a.shdon || 0);
                 } else {
-                    // Mua vào: Nhà cung cấp tăng dần -> Số hóa đơn giảm dần
                     const supplierA = (a.nbten || a.nbmst || '').trim();
                     const supplierB = (b.nbten || b.nbmst || '').trim();
                     const cmpSupplier = supplierA.localeCompare(supplierB, 'vi');
@@ -550,7 +581,7 @@
         }
     }
 
-    // 11. Hiển thị bảng Modal dữ liệu (Có màu sắc theo dòng)
+    // 11. Hiển thị bảng Modal dữ liệu
     function showModal(list, periodTitle, year, isPurchase, totalCount, defaultStartMonth) {
         const tbody = document.getElementById('modal-tbody');
         tbody.innerHTML = '';
@@ -564,12 +595,14 @@
             filterInput.value = `${year}-${pad(defaultStartMonth)}-01`;
         }
 
+        const mstInput = document.getElementById('filter-mst-input');
+        if (mstInput) mstInput.value = '';
+
         const fmtMoney = (val) => (val !== null && val !== undefined && val !== '') ? Number(val).toLocaleString('vi-VN') : '0';
 
         list.forEach((item, index) => {
             const tr = document.createElement('tr');
             
-            // Xử lý thông tin đối tác: Nếu nmten = null thì lấy nmtnmua
             let partnerName = '-';
             let partnerMst = '-';
             if (isPurchase) {
@@ -583,12 +616,15 @@
             const dateOnly = item.tdlap ? item.tdlap.substring(0, 10) : '';
             const { statusText, refText, rowType } = parseInvoiceStatus(item);
 
-            // Gán class màu cho dòng
             if (rowType === 'modified') {
                 tr.className = 'row-warning-modified';
             } else if (rowType === 'replaced_source') {
                 tr.className = 'row-danger-replaced';
             }
+
+            // Gán data-mst và data-date vào TR để phục vụ lọc nhanh
+            tr.setAttribute('data-mst', String(partnerMst).toLowerCase());
+            tr.setAttribute('data-date', dateOnly);
 
             tr.innerHTML = `
                 <td><input type="checkbox" class="chk-item" data-index="${index}" data-date="${dateOnly}"></td>
@@ -597,7 +633,7 @@
                 <td><span style="color: #1677ff; font-weight: 600;">${item.shdon}</span></td>
                 <td>${dateOnly}</td>
                 <td style="max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${partnerName}">${partnerName}</td>
-                <td>${partnerMst}</td>
+                <td class="col-mst">${partnerMst}</td>
                 <td style="text-align: center; color: #475569;">${item.dvtte || 'VND'}</td>
                 <td style="text-align: right;">${fmtMoney(item.tgtcthue)}</td>
                 <td style="text-align: right;">${fmtMoney(item.tgtthue)}</td>
@@ -627,18 +663,79 @@
             };
         });
 
-        updateSummary();
+        applyMstFilter();
         overlay.style.display = 'block';
         modal.style.display = 'flex';
     }
 
-    function updateSummary() {
-        const total = currentInvoices.length;
-        const selectedCount = document.querySelectorAll('.chk-item:checked').length;
-        document.getElementById('modal-summary').textContent = `Đã chọn: ${selectedCount}/${total} hóa đơn.`;
+    // =========================================================================
+    // XỬ LÝ LỌC MST VÀ TÍCH CHỌN DÒNG ĐANG LỌC
+    // =========================================================================
+    function applyMstFilter() {
+        const filterVal = (document.getElementById('filter-mst-input').value || '').trim().toLowerCase();
+        const rows = document.querySelectorAll('#modal-tbody tr');
+        let visibleCount = 0;
+
+        rows.forEach(tr => {
+            const rowMst = tr.getAttribute('data-mst') || '';
+            if (!filterVal || rowMst.includes(filterVal)) {
+                tr.style.display = '';
+                visibleCount++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+
+        const badge = document.getElementById('badge-match-count');
+        if (badge) {
+            badge.textContent = `${visibleCount}/${rows.length} dòng`;
+        }
+
+        updateSummary();
     }
 
-    // 12. Xuất File Excel Kế Toán có màu nền, viền kẻ và font chữ chuyên nghiệp
+    function updateSummary() {
+        const rows = Array.from(document.querySelectorAll('#modal-tbody tr'));
+        const total = rows.length;
+        const visibleRows = rows.filter(r => r.style.display !== 'none');
+        const selectedCount = document.querySelectorAll('#modal-tbody .chk-item:checked').length;
+        
+        document.getElementById('modal-summary').textContent = 
+            `Đã chọn: ${selectedCount} | Hiển thị: ${visibleRows.length}/${total} hóa đơn.`;
+
+        // Đồng bộ trạng thái checkbox header (chỉ tính trên các dòng đang hiển thị)
+        const chkAll = document.getElementById('chk-all');
+        if (chkAll && visibleRows.length > 0) {
+            const allVisibleChecked = visibleRows.every(r => {
+                const chk = r.querySelector('.chk-item');
+                return chk && chk.checked;
+            });
+            chkAll.checked = allVisibleChecked;
+        } else if (chkAll) {
+            chkAll.checked = false;
+        }
+    }
+
+    // Gắn sự kiện cho ô lọc MST
+    document.getElementById('filter-mst-input').oninput = applyMstFilter;
+
+    // Nút Hiện hết (Reset lọc MST)
+    document.getElementById('btn-reset-mst-filter').onclick = () => {
+        document.getElementById('filter-mst-input').value = '';
+        applyMstFilter();
+    };
+
+    // Nút Chọn tất cả dòng ĐANG HIỂN THỊ
+    document.getElementById('btn-select-visible').onclick = () => {
+        const visibleRows = Array.from(document.querySelectorAll('#modal-tbody tr')).filter(r => r.style.display !== 'none');
+        visibleRows.forEach(tr => {
+            const chk = tr.querySelector('.chk-item');
+            if (chk) chk.checked = true;
+        });
+        updateSummary();
+    };
+
+    // 12. Xuất File Excel Kế Toán
     function exportToProfessionalExcel() {
         if (!currentInvoices || currentInvoices.length === 0) {
             alert("Không có dữ liệu để xuất file Excel!");
@@ -650,14 +747,12 @@
             ? `BẢNG KÊ HÓA ĐƠN ĐIỆN TỬ MUA VÀO - ${currentPeriodContext.periodTitle.toUpperCase()} NĂM ${currentPeriodContext.year}`
             : `BẢNG KÊ HÓA ĐƠN ĐIỆN TỬ BÁN RA - ${currentPeriodContext.periodTitle.toUpperCase()} NĂM ${currentPeriodContext.year}`;
 
-        // Header thông tin tiêu đề kế toán
         const rows = [
             [titleText],
             [`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}`],
-            [] // Dòng trống
+            []
         ];
 
-        // Dòng tiêu đề bảng
         const tableHeaders = [
             "STT",
             "Mẫu số",
@@ -682,9 +777,8 @@
         let sumPhi = 0;
         let sumTong = 0;
 
-        const rowMetaList = []; // Lưu trữ trạng thái để tô màu dòng trong Excel
+        const rowMetaList = [];
 
-        // Điền dữ liệu
         currentInvoices.forEach((item, idx) => {
             let partnerName = '';
             let partnerMst = '';
@@ -728,7 +822,6 @@
             ]);
         });
 
-        // Dòng TỔNG CỘNG
         rows.push([
             "TỔNG CỘNG", "", "", "", "", "", "", "",
             sumChuaThue,
@@ -741,33 +834,30 @@
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(rows);
 
-        // Định dạng độ rộng cột
         ws['!cols'] = [
-            { wch: 6 },  // STT
-            { wch: 8 },  // Mẫu số
-            { wch: 10 }, // Ký hiệu
-            { wch: 12 }, // Số HĐ
-            { wch: 12 }, // Ngày lập
-            { wch: 40 }, // Tên đối tác
-            { wch: 16 }, // MST
-            { wch: 6 },  // ĐVT
-            { wch: 18 }, // Tiền chưa thuế
-            { wch: 15 }, // Thuế GTGT
-            { wch: 15 }, // Phí
-            { wch: 18 }, // Tổng tiền
-            { wch: 18 }, // Trạng thái
-            { wch: 35 }, // HĐ liên quan
-            { wch: 22 }  // Kết quả CQT
+            { wch: 6 },
+            { wch: 8 },
+            { wch: 10 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 40 },
+            { wch: 16 },
+            { wch: 6 },
+            { wch: 18 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 18 },
+            { wch: 35 },
+            { wch: 22 }
         ];
 
-        // Ghép ô tiêu đề
         ws['!merges'] = [
             { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } },
             { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } },
             { s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 7 } }
         ];
 
-        // Định nghĩa bộ Style chuẩn kế toán chuyên nghiệp
         const borderThin = {
             top: { style: "thin", color: { rgb: "D1D5DB" } },
             bottom: { style: "thin", color: { rgb: "D1D5DB" } },
@@ -782,15 +872,13 @@
             right: { style: "thin", color: { rgb: "D1D5DB" } }
         };
 
-        // Style cho dòng Tiêu đề bảng (Header - Hàng 4)
         const headerStyle = {
             font: { name: "Times New Roman", sz: 11, bold: true, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "1E3A8A" } }, // Xanh than đậm thanh lịch
+            fill: { fgColor: { rgb: "1E3A8A" } },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: borderThin
         };
 
-        // Style dòng tổng cộng
         const totalStyleNumber = {
             font: { name: "Times New Roman", sz: 11, bold: true, color: { rgb: "000000" } },
             fill: { fgColor: { rgb: "F1F5F9" } },
@@ -805,7 +893,6 @@
             border: borderDoubleBottom
         };
 
-        // Style dòng tiêu đề báo cáo
         if (ws['A1']) {
             ws['A1'].s = {
                 font: { name: "Times New Roman", sz: 15, bold: true, color: { rgb: "1E3A8A" } },
@@ -820,22 +907,19 @@
         }
 
         const range = XLSX.utils.decode_range(ws['!ref']);
-        const headerRowIndex = 3; // Index hàng 4 trong Excel
+        const headerRowIndex = 3;
         const totalRowIndex = range.e.r;
 
-        // Áp dụng định dạng cho từng ô trong bảng tính
         for (let R = headerRowIndex; R <= range.e.r; ++R) {
             for (let C = 0; C <= range.e.c; ++C) {
                 const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
                 if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
 
-                // 1. Dòng Header cột
                 if (R === headerRowIndex) {
                     ws[cellRef].s = headerStyle;
                     continue;
                 }
 
-                // 2. Dòng TỔNG CỘNG cuối bảng
                 if (R === totalRowIndex) {
                     if (C >= 8 && C <= 11) {
                         ws[cellRef].s = totalStyleNumber;
@@ -846,26 +930,23 @@
                     continue;
                 }
 
-                // 3. Các dòng dữ liệu chi tiết
                 const dataIndex = R - (headerRowIndex + 1);
                 const rowType = rowMetaList[dataIndex] || 'normal';
 
-                // Xác định màu nền và màu chữ theo trạng thái
                 let cellFill = { fgColor: { rgb: "FFFFFF" } };
                 let cellFontColor = { rgb: "000000" };
                 let isBold = false;
 
                 if (rowType === 'modified') {
-                    cellFill = { fgColor: { rgb: "FEF3C7" } }; // Vàng cam nhạt
-                    cellFontColor = { rgb: "92400E" }; // Nâu cam
+                    cellFill = { fgColor: { rgb: "FEF3C7" } };
+                    cellFontColor = { rgb: "92400E" };
                     isBold = (C === 12);
                 } else if (rowType === 'replaced_source') {
-                    cellFill = { fgColor: { rgb: "FEE2E2" } }; // Đỏ hồng nhạt
-                    cellFontColor = { rgb: "991B1B" }; // Đỏ đậm
+                    cellFill = { fgColor: { rgb: "FEE2E2" } };
+                    cellFontColor = { rgb: "991B1B" };
                     isBold = (C === 12);
                 }
 
-                // Căn lề theo từng loại cột
                 let alignH = "left";
                 if (C === 0 || C === 1 || C === 2 || C === 3 || C === 4 || C === 6 || C === 7 || C === 12 || C === 14) {
                     alignH = "center";
@@ -880,7 +961,6 @@
                     border: borderThin
                 };
 
-                // Định dạng tiền tệ
                 if (C >= 8 && C <= 11 && typeof ws[cellRef].v === 'number') {
                     ws[cellRef].z = '#,##0';
                 }
@@ -904,8 +984,15 @@
         modal.style.display = 'none';
     };
 
+    // Checkbox Header: Chỉ tích chọn các dòng ĐANG HIỂN THỊ
     document.getElementById('chk-all').onchange = function () {
-        document.querySelectorAll('.chk-item').forEach(chk => chk.checked = this.checked);
+        const rows = document.querySelectorAll('#modal-tbody tr');
+        rows.forEach(tr => {
+            if (tr.style.display !== 'none') {
+                const chk = tr.querySelector('.chk-item');
+                if (chk) chk.checked = this.checked;
+            }
+        });
         updateSummary();
     };
 
@@ -923,23 +1010,21 @@
             return;
         }
 
-        const checkboxes = document.querySelectorAll('.chk-item');
-        let matched = 0;
-
-        checkboxes.forEach(chk => {
-            const itemDate = chk.getAttribute('data-date');
-            if (itemDate && itemDate >= filterVal) {
-                chk.checked = true;
-                matched++;
-            } else {
-                chk.checked = false;
+        const rows = document.querySelectorAll('#modal-tbody tr');
+        rows.forEach(tr => {
+            if (tr.style.display !== 'none') {
+                const itemDate = tr.getAttribute('data-date');
+                const chk = tr.querySelector('.chk-item');
+                if (chk) {
+                    chk.checked = Boolean(itemDate && itemDate >= filterVal);
+                }
             }
         });
 
-        document.getElementById('chk-all').checked = (matched === checkboxes.length && matched > 0);
         updateSummary();
     };
 
+    // Bỏ chọn tất cả
     document.getElementById('btn-clear-selection').onclick = () => {
         document.querySelectorAll('.chk-item').forEach(chk => chk.checked = false);
         document.getElementById('chk-all').checked = false;
@@ -1026,5 +1111,5 @@
         monthsContainer.appendChild(btn);
     }
 
-    console.log("%c[HDDT]%c Đã cập nhật hoàn chỉnh: Phân màu HĐ Thay thế/Điều chỉnh trên Web & Bảng kê Excel có Viền + Màu nền!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
+    console.log("%c[HDDT]%c Đã cập nhật tính năng: Hộp lọc MST & Tích chọn theo bộ lọc thành công!", "color:#1677ff;font-weight:bold;", "color:#16a34a;");
 })();
