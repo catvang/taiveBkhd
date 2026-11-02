@@ -340,7 +340,7 @@
         </div>
         <div class="a-row" style="justify-content: space-between;">
             <span style="font-weight: 600;">Mã công ty:</span>
-            <input type="text" id="api-company-code" class="a-input-code" value="Lkqt" placeholder="Mã Cty...">
+            <input type="text" id="api-company-code" class="a-input-code" value="Công ty" placeholder="Mã Cty...">
         </div>
         <div class="a-row" style="justify-content: space-between;">
             <span style="font-weight: 600;">Số dòng / Năm:</span>
